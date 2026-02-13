@@ -6,7 +6,6 @@ v3.0 — Data Intelligence: History, Multi-Source, AI Memory
 
 import asyncio
 import json
-from functools import partial
 
 from fastapi import FastAPI, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,8 +34,6 @@ from ai_advisor import get_ai_advice
 from data_sources import aggregate_all_sources
 from logger import get_logger
 
-import concurrent.futures
-
 log = get_logger("api")
 
 app = FastAPI(
@@ -54,21 +51,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Thread pool for blocking I/O (yfinance, DB, etc.)
-_executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
+# Global request timeout (seconds) for blocking I/O
+REQUEST_TIMEOUT = 30
 
 
 async def run_sync(func, *args, **kwargs):
-    """Run a blocking function in a thread executor."""
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(_executor, partial(func, *args, **kwargs))
+    """Run a blocking function in a thread via asyncio.to_thread with timeout."""
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(func, *args, **kwargs),
+            timeout=REQUEST_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        log.error(f"Timeout ({REQUEST_TIMEOUT}s) calling {func.__name__}")
+        return {"error": f"Request timed out after {REQUEST_TIMEOUT}s"}
 
 
 # --- Lifecycle Events ---
 @app.on_event("shutdown")
 def shutdown_event():
     close_pool()
-    _executor.shutdown(wait=False)
     log.info("CuanBot API shutdown complete")
 
 
@@ -128,38 +130,47 @@ async def root():
 @app.get("/api/analyze/{asset_type}/{symbol}")
 async def analyze(asset_type: str, symbol: str):
     """Fetch market data and run technical analysis."""
-    if asset_type == "stock":
-        data = await run_sync(get_stock_data, symbol)
-    elif asset_type == "crypto":
-        data = await run_sync(get_crypto_data, symbol)
-    else:
-        raise HTTPException(400, "Invalid type. Use 'stock' or 'crypto'.")
+    try:
+        if asset_type == "stock":
+            data = await run_sync(get_stock_data, symbol)
+        elif asset_type == "crypto":
+            data = await run_sync(get_crypto_data, symbol)
+        else:
+            raise HTTPException(400, "Invalid type. Use 'stock' or 'crypto'.")
 
-    if "error" in data:
-        raise HTTPException(404, data["error"])
+        if "error" in data:
+            raise HTTPException(404, data["error"])
 
-    analysis = await run_sync(analyze_market_data, data)
-    if "error" in analysis:
-        raise HTTPException(500, analysis["error"])
+        analysis = await run_sync(analyze_market_data, data)
+        if "error" in analysis:
+            raise HTTPException(500, analysis["error"])
 
-    # Save to DB (fire and forget)
-    symbol_name = data.get("symbol")
-    price = analysis.get("price")
-    if symbol_name and price:
-        await run_sync(save_analysis, symbol_name, price, analysis)
-        # Also save to analysis_history
-        await run_sync(save_analysis_history, symbol_name, "technical", analysis)
+        # Save to DB (fire and forget)
+        symbol_name = data.get("symbol")
+        price = analysis.get("price")
+        if symbol_name and price:
+            await run_sync(save_analysis, symbol_name, price, analysis)
+            await run_sync(save_analysis_history, symbol_name, "technical", analysis)
 
-    return {"market_data": data, "analysis": analysis}
+        return {"market_data": data, "analysis": analysis}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"analyze endpoint error: {e}")
+        return {"error": str(e)}
 
 
 @app.get("/api/news/{ticker}")
 async def news(ticker: str, limit: int = Query(5, ge=1, le=20)):
     """Fetch latest news from Google News RSS + CNBC Indonesia."""
-    result = await run_sync(fetch_news, ticker, limit)
-    if "error" in result:
-        raise HTTPException(500, result["error"])
-    return result
+    try:
+        result = await run_sync(fetch_news, ticker, limit)
+        if "error" in result:
+            return result  # Return error as JSON, don't crash
+        return result
+    except Exception as e:
+        log.error(f"news endpoint error: {e}")
+        return {"error": str(e)}
 
 
 @app.get("/api/backtest/{symbol}/{strategy}")
@@ -309,8 +320,12 @@ async def data_sources(symbol: str):
     Get aggregated data from multiple sources
     (CNBC Indonesia, macro indicators, BI rate, bonds, VIX, oil).
     """
-    result = await run_sync(aggregate_all_sources, symbol)
-    return result
+    try:
+        result = await run_sync(aggregate_all_sources, symbol)
+        return result
+    except Exception as e:
+        log.error(f"data-sources endpoint error: {e}")
+        return {"error": str(e)}
 
 
 # ========== AI FEATURES ==========
@@ -381,7 +396,11 @@ async def ai_advisor(symbol: str, skip_llm: bool = Query(True, description="Skip
     skip_llm=False: backend LLM generates verdict.
     """
     log.info(f"AI Advisor request: {symbol} (skip_llm={skip_llm})")
-    result = await run_sync(get_ai_advice, symbol, skip_llm)
-    if "error" in result:
-        raise HTTPException(500, result["error"])
-    return result
+    try:
+        result = await run_sync(get_ai_advice, symbol, skip_llm)
+        if "error" in result:
+            return result  # Return error as JSON, don't crash
+        return result
+    except Exception as e:
+        log.error(f"ai-advisor endpoint error: {e}")
+        return {"error": str(e)}
