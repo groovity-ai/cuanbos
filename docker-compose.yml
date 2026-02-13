@@ -6,6 +6,8 @@ services:
     container_name: cuanbot-engine
     volumes:
       - ./src:/app/src
+    ports:
+      - "8000:8000"
     environment:
       - DB_HOST=db
       - DB_USER=cuanbot
@@ -13,7 +15,7 @@ services:
       - DB_NAME=cuanbot
     depends_on:
       - db
-    command: tail -f /dev/null
+    working_dir: /app/src
     restart: unless-stopped
 
   db:

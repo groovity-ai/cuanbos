@@ -6,3 +6,7 @@ fastapi
 uvicorn
 psycopg2-binary
 sqlalchemy
+pytest
+httpx
+PyPDF2
+python-multipart

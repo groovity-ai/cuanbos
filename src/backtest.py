@@ -16,6 +16,11 @@ def run_backtest(symbol, strategy, initial_capital=10000000):
         df['MA50'] = df.ta.sma(length=50)
         df['MA200'] = df.ta.sma(length=200)
         
+        # MACD for macd_reversal strategy
+        macd = df.ta.macd(fast=12, slow=26, signal=9)
+        df['MACD'] = macd['MACD_12_26_9']
+        df['MACD_Signal'] = macd['MACDs_12_26_9']
+        
         # Simulation
         capital = initial_capital
         position = 0 # 0 = flat, >0 = shares
@@ -45,6 +50,14 @@ def run_backtest(symbol, strategy, initial_capital=10000000):
                     signal = "buy"
                 elif position > 0 and prev['MA50'] < prev['MA200']:
                     signal = "sell"
+            
+            elif strategy == "macd_reversal":
+                # MACD Bullish/Bearish Crossover
+                prev2 = df.iloc[i-2]
+                if position == 0 and prev['MACD'] > prev['MACD_Signal'] and prev2['MACD'] <= prev2['MACD_Signal']:
+                    signal = "buy"  # Bullish crossover
+                elif position > 0 and prev['MACD'] < prev['MACD_Signal'] and prev2['MACD'] >= prev2['MACD_Signal']:
+                    signal = "sell"  # Bearish crossover
             
             # Execute
             if signal == "buy" and position == 0:

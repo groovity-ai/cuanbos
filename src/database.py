@@ -94,3 +94,58 @@ def get_latest_analysis(symbol):
     except Exception as e:
         print(f"Error fetching analysis: {e}")
         return None
+
+def add_portfolio_position(symbol, asset_type, entry_price, qty, sl_pct=-5, tp_pct=10):
+    """Add a new position to the portfolio table."""
+    conn = get_connection()
+    if not conn:
+        return None
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """INSERT INTO portfolio (symbol, asset_type, entry_price, qty, sl_pct, tp_pct)
+               VALUES (%s, %s, %s, %s, %s, %s) RETURNING *""",
+            (symbol, asset_type, entry_price, qty, sl_pct, tp_pct)
+        )
+        result = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        return dict(result)
+    except Exception as e:
+        print(f"Error adding position: {e}")
+        conn.rollback()
+        return None
+
+def get_portfolio():
+    """Fetch all positions from the portfolio table."""
+    conn = get_connection()
+    if not conn:
+        return []
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM portfolio ORDER BY created_at DESC")
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [dict(r) for r in results]
+    except Exception as e:
+        print(f"Error fetching portfolio: {e}")
+        return []
+
+def delete_portfolio_position(position_id):
+    """Delete a position by ID."""
+    conn = get_connection()
+    if not conn:
+        return False
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM portfolio WHERE id = %s", (position_id,))
+        deleted = cur.rowcount > 0
+        conn.commit()
+        cur.close()
+        conn.close()
+        return deleted
+    except Exception as e:
+        print(f"Error deleting position: {e}")
+        return False

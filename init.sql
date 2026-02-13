@@ -19,6 +19,17 @@ CREATE TABLE IF NOT EXISTS daily_analysis (
     UNIQUE(symbol, analysis_date)
 );
 
+CREATE TABLE IF NOT EXISTS portfolio (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    asset_type VARCHAR(10) NOT NULL CHECK (asset_type IN ('stock', 'crypto')),
+    entry_price DECIMAL(18, 4) NOT NULL,
+    qty DECIMAL(18, 8) NOT NULL,
+    sl_pct DECIMAL(5, 2) DEFAULT -5,
+    tp_pct DECIMAL(5, 2) DEFAULT 10,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Seed some initial data
 INSERT INTO watchlist (symbol, asset_type, notes) VALUES 
 ('BBCA.JK', 'stock', 'Blue chip banking'),

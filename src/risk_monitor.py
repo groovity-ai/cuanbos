@@ -1,58 +1,78 @@
 import sys
 import json
 import yfinance as yf
-
-# Mock Database (In reality, fetch from Postgres)
-PORTFOLIO = [
-    {"symbol": "BBCA.JK", "entry_price": 9500, "qty": 100, "sl_pct": -5, "tp_pct": 10},
-    {"symbol": "TLKM.JK", "entry_price": 4000, "qty": 500, "sl_pct": -3, "tp_pct": 8},
-    {"symbol": "BTC-USD", "entry_price": 60000, "qty": 0.1, "sl_pct": -10, "tp_pct": 20}
-]
+from datetime import datetime
+from database import get_portfolio
 
 def monitor_risk():
-    alerts = []
+    """Check portfolio positions against SL/TP thresholds using real DB data."""
+    portfolio = get_portfolio()
     
-    for pos in PORTFOLIO:
+    if not portfolio:
+        print(json.dumps({"alerts": [], "message": "No positions in portfolio"}))
+        return
+    
+    alerts = []
+    summary = []
+    
+    for pos in portfolio:
         symbol = pos['symbol']
         try:
             ticker = yf.Ticker(symbol)
-            # Use 'regularMarketPrice' or fetch history for latest close
-            # Using fast info if available, else history 1d
             try:
                 current_price = ticker.fast_info['last_price']
-            except:
+            except Exception:
                 hist = ticker.history(period="1d")
-                if hist.empty: continue
+                if hist.empty:
+                    continue
                 current_price = hist['Close'].iloc[-1]
-                
-            entry = pos['entry_price']
+            
+            entry = float(pos['entry_price'])
+            qty = float(pos['qty'])
+            sl_pct = float(pos['sl_pct'])
+            tp_pct = float(pos['tp_pct'])
             pnl_pct = (current_price - entry) / entry * 100
+            pnl_val = (current_price - entry) * qty
             
             status = "HOLD"
             action = "NONE"
             
-            if pnl_pct <= pos['sl_pct']:
+            if pnl_pct <= sl_pct:
                 status = "STOP_LOSS"
                 action = "SELL_IMMEDIATELY"
-            elif pnl_pct >= pos['tp_pct']:
+            elif pnl_pct >= tp_pct:
                 status = "TAKE_PROFIT"
                 action = "SELL_PROFIT"
-                
+            
+            position_info = {
+                "id": pos['id'],
+                "symbol": symbol,
+                "entry_price": entry,
+                "current_price": current_price,
+                "qty": qty,
+                "pnl_pct": round(pnl_pct, 2),
+                "pnl_val": round(pnl_val, 2),
+                "status": status,
+                "action": action,
+                "sl_pct": sl_pct,
+                "tp_pct": tp_pct,
+                "timestamp": datetime.now().isoformat()
+            }
+            
             if status != "HOLD":
-                alert = {
-                    "symbol": symbol,
-                    "status": status,
-                    "action": action,
-                    "current_price": current_price,
-                    "pnl_pct": round(pnl_pct, 2),
-                    "timestamp": "now"
-                }
-                alerts.append(alert)
-                
+                alerts.append(position_info)
+            summary.append(position_info)
+            
         except Exception as e:
             print(f"Error checking {symbol}: {e}", file=sys.stderr)
-            
-    print(json.dumps({"alerts": alerts}, indent=2))
+    
+    output = {
+        "alerts": alerts,
+        "summary": summary,
+        "total_positions": len(portfolio),
+        "alert_count": len(alerts)
+    }
+    print(json.dumps(output, indent=2))
 
 if __name__ == "__main__":
     monitor_risk()

@@ -22,4 +22,8 @@ COPY src ./src
 RUN adduser --disabled-password --gecos '' cuanuser
 USER cuanuser
 
-CMD ["tail", "-f", "/dev/null"]
+EXPOSE 8000
+
+# Run FastAPI via uvicorn (working dir = src for module imports)
+WORKDIR /app/src
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
