@@ -126,19 +126,25 @@ def get_foreign_flow_data(symbol):
         return {"error": f"Bandarilogi analysis failed: {str(e)}"}
 
 
-def analyze_bandarmology(symbol):
+def analyze_bandarmology(symbol, skip_llm=True):
     """
-    Full bandarmology analysis with AI commentary.
+    Full bandarmology analysis, optionally with AI commentary.
+    skip_llm=True: return raw indicators only (agent does reasoning).
     """
     data = get_foreign_flow_data(symbol)
     if "error" in data:
         return data
 
-    # Get AI commentary
-    messages = [
-        {
-            "role": "system",
-            "content": """You are CuanBot Bandarmology Analyst. Analyze the money flow data.
+    data["llm_analyzed"] = not skip_llm
+
+    if skip_llm:
+        data["ai_analysis"] = None
+    else:
+        # Get AI commentary
+        messages = [
+            {
+                "role": "system",
+                "content": """You are CuanBot Bandarmology Analyst. Analyze the money flow data.
 Respond in VALID JSON:
 {
     "verdict": "Accumulation / Distribution / Markup / Markdown / Neutral",
@@ -146,27 +152,28 @@ Respond in VALID JSON:
     "explanation": "2-3 sentence explanation in Bahasa Indonesia (santai, gaya lo-gue)",
     "action": "Buy / Sell / Hold / Watch"
 }"""
-        },
-        {"role": "user", "content": f"Bandarmology data for {symbol}:\n{json.dumps(data, indent=2)}"},
-    ]
-
-    try:
-        response = chat_completion(messages)
-        cleaned = response.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[1]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-            cleaned = cleaned.strip()
+            },
+            {"role": "user", "content": f"Bandarmology data for {symbol}:\n{json.dumps(data, indent=2)}"},
+        ]
 
         try:
-            ai_analysis = json.loads(cleaned)
-        except json.JSONDecodeError:
-            ai_analysis = {"verdict": data["bandar_status"], "raw_response": response}
-    except Exception as e:
-        ai_analysis = {"error": str(e)}
+            response = chat_completion(messages)
+            cleaned = response.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[1]
+                if cleaned.endswith("```"):
+                    cleaned = cleaned[:-3]
+                cleaned = cleaned.strip()
 
-    data["ai_analysis"] = ai_analysis
+            try:
+                ai_analysis = json.loads(cleaned)
+            except json.JSONDecodeError:
+                ai_analysis = {"verdict": data["bandar_status"], "raw_response": response}
+        except Exception as e:
+            ai_analysis = {"error": str(e)}
+
+        data["ai_analysis"] = ai_analysis
+
     # Save to history
     save_analysis_history(symbol, "bandarilogi", data)
     return data

@@ -61,9 +61,10 @@ def extract_pdf_text(pdf_bytes, max_pages=20):
         return None, f"PDF extraction failed: {str(e)}"
 
 
-def analyze_report(pdf_bytes):
+def analyze_report(pdf_bytes, skip_llm=True):
     """
-    Parse a PDF financial report and analyze with LLM.
+    Parse a PDF financial report and optionally analyze with LLM.
+    skip_llm=True: return raw text only (agent does reasoning).
 
     Args:
         pdf_bytes: Raw bytes of the PDF file.
@@ -83,6 +84,13 @@ def analyze_report(pdf_bytes):
     max_chars = 15000
     if len(text) > max_chars:
         text = text[:max_chars] + "\n\n[... truncated ...]"
+
+    if skip_llm:
+        return {
+            "raw_text": text,
+            "pages_extracted": len(text.split("\n\n")),
+            "llm_analyzed": False,
+        }
 
     # 3. Send to LLM
     messages = [
@@ -104,6 +112,7 @@ def analyze_report(pdf_bytes):
         try:
             result = json.loads(cleaned)
             result["pages_extracted"] = len(text.split("\n\n"))
+            result["llm_analyzed"] = True
             return result
         except json.JSONDecodeError:
             return {
@@ -111,6 +120,7 @@ def analyze_report(pdf_bytes):
                 "analysis": response,
                 "verdict": "Could not parse structured response",
                 "raw_response": response,
+                "llm_analyzed": True,
             }
 
     except Exception as e:

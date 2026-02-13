@@ -54,7 +54,7 @@ PENTING: Jawab HANYA dengan JSON, tanpa markdown atau teks tambahan."""
 
 
 @cached("ai_advisor", ttl=TTL_ANALYSIS)
-def get_ai_advice(symbol):
+def get_ai_advice(symbol, skip_llm=True):
     """
     Run all analyses and combine into a single AI-powered verdict.
     Injects memory context from past analyses.
@@ -95,48 +95,55 @@ def get_ai_advice(symbol):
     memory_text = format_memory_prompt(symbol)
     memory_section = f"\n{memory_text}\n" if memory_text else ""
 
-    # Build prompt
-    prompt = ADVISOR_PROMPT.format(
-        symbol=symbol,
-        technical_json=json.dumps(technical, indent=2, default=str),
-        bandar_json=json.dumps(bandar, indent=2, default=str),
-        sentiment_json=json.dumps(sentiment, indent=2, default=str),
-        macro_json=json.dumps(macro, indent=2, default=str),
-        memory_section=memory_section,
-    )
+    if skip_llm:
+        # Agent-centric mode: return raw data, let calling agent reason
+        log.info(f"AI Advisor: skip_llm=True, returning raw data for {symbol}")
+        ai_result = None
+    else:
+        # Build prompt
+        prompt = ADVISOR_PROMPT.format(
+            symbol=symbol,
+            technical_json=json.dumps(technical, indent=2, default=str),
+            bandar_json=json.dumps(bandar, indent=2, default=str),
+            sentiment_json=json.dumps(sentiment, indent=2, default=str),
+            macro_json=json.dumps(macro, indent=2, default=str),
+            memory_section=memory_section,
+        )
 
-    # Call LLM
-    try:
-        raw_response = chat_completion(prompt)
-        # Try to parse JSON from response
-        cleaned = raw_response.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[1]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-            cleaned = cleaned.strip()
-        ai_result = json.loads(cleaned)
-    except json.JSONDecodeError:
-        ai_result = {
-            "verdict": "HOLD",
-            "confidence": 50,
-            "reasoning": raw_response,
-            "key_factors": ["AI response was not structured"],
-            "risk_level": "Medium",
-        }
-    except Exception as e:
-        log.error(f"AI Advisor LLM call failed: {e}")
-        ai_result = {
-            "verdict": "HOLD",
-            "confidence": 0,
-            "reasoning": f"AI analysis unavailable: {str(e)}",
-            "risk_level": "Unknown",
-        }
+        # Call LLM
+        try:
+            raw_response = chat_completion(prompt)
+            # Try to parse JSON from response
+            cleaned = raw_response.strip()
+            if cleaned.startswith("```"):
+                cleaned = cleaned.split("\n", 1)[1]
+                if cleaned.endswith("```"):
+                    cleaned = cleaned[:-3]
+                cleaned = cleaned.strip()
+            ai_result = json.loads(cleaned)
+        except json.JSONDecodeError:
+            ai_result = {
+                "verdict": "HOLD",
+                "confidence": 50,
+                "reasoning": raw_response,
+                "key_factors": ["AI response was not structured"],
+                "risk_level": "Medium",
+            }
+        except Exception as e:
+            log.error(f"AI Advisor LLM call failed: {e}")
+            ai_result = {
+                "verdict": "HOLD",
+                "confidence": 0,
+                "reasoning": f"AI analysis unavailable: {str(e)}",
+                "risk_level": "Unknown",
+            }
 
     result = {
         "symbol": symbol,
         "ai_verdict": ai_result,
+        "llm_analyzed": not skip_llm,
         "has_memory": memory_text is not None,
+        "memory_context": memory_text if skip_llm else None,
         "data_sources": {
             "technical": technical,
             "bandarilogi": bandar if "error" not in bandar else None,

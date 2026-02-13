@@ -12,13 +12,14 @@ http://cuanbot-engine:8000
 ## Alur Kerja Analisa Saham
 
 ### Quick Analysis (1 endpoint)
-Gunakan AI Advisor untuk verdict komprehensif — **termasuk memori dari analisa sebelumnya**:
+Gunakan AI Advisor untuk mendapatkan semua data mentah — **kamu (agent) yang reasoning**:
 ```
 GET /api/ai-advisor/{SYMBOL}
 ```
 Contoh: `GET /api/ai-advisor/BBCA.JK`
 
-Hasilnya sudah menggabungkan: Teknikal + Bandarilogi + Sentimen + Makro + AI Memory.
+Hasilnya berisi: Teknikal + Bandarilogi + Sentimen + Makro + AI Memory context.
+**Default `skip_llm=true`** — backend TIDAK panggil LLM, kamu yang analisa dari data JSON.
 
 ---
 
@@ -35,7 +36,7 @@ Output: price, RSI, MACD, trend, MA50/200, gorengan detection.
 ```
 GET /api/sentiment/{TICKER}
 ```
-Output: skor sentimen -100 s/d +100, analisa per artikel.
+Output: skor sentimen -100 s/d +100 (kalau `skip_llm=false`), atau raw headlines (default).
 
 **Step 3: Cek Bandarilogi (Foreign Flow)**
 ```
@@ -47,7 +48,7 @@ Output: akumulasi/distribusi, MFI, OBV trend.
 ```
 GET /api/macro
 ```
-Output: USD/IDR, IHSG, Gold, BI Rate, VIX, bond yields, DXY, oil + AI macro outlook.
+Output: USD/IDR, IHSG, Gold, BI Rate, VIX, bond yields, DXY, oil. Tambah `?skip_llm=false` untuk AI macro outlook.
 
 **Step 5: Cek Multi-Source Data**
 ```
@@ -173,3 +174,6 @@ Penjelasan santai kenapa — gabungkan teknikal + sentimen + bandar.
 **PENTING:**
 - Backend ada di Docker Container `cuanbot-engine`, FastAPI on port 8000.
 - Semua endpoint bisa diakses via HTTP dari dalam Docker network.
+- **Default `skip_llm=true`** — backend mengembalikan data mentah, kamu (agent) yang reasoning.
+- Tambahkan `?skip_llm=false` jika ingin backend LLM yang reasoning (butuh koneksi ke LLM gateway).
+- 5 endpoint support `skip_llm`: ai-advisor, sentiment, bandarilogi, macro, report.

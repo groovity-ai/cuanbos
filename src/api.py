@@ -332,7 +332,7 @@ async def chart_vision(file: UploadFile = File(...)):
 
 
 @app.post("/api/report")
-async def report(file: UploadFile = File(...)):
+async def report(file: UploadFile = File(...), skip_llm: bool = Query(True, description="Skip LLM analysis, return raw extracted text")):
     """Upload and analyze a PDF financial report using RAG."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "File must be a PDF")
@@ -341,45 +341,47 @@ async def report(file: UploadFile = File(...)):
     if len(pdf_bytes) > 20 * 1024 * 1024:
         raise HTTPException(400, "PDF too large. Max 20MB.")
 
-    result = await run_sync(analyze_report, pdf_bytes)
+    result = await run_sync(analyze_report, pdf_bytes, skip_llm)
     if "error" in result:
         raise HTTPException(500, result["error"])
     return result
 
 
 @app.get("/api/macro")
-async def macro():
-    """Get macro-economic data and AI market outlook (multi-source)."""
-    result = await run_sync(analyze_macro)
+async def macro(skip_llm: bool = Query(True, description="Skip LLM analysis, return raw macro data")):
+    """Get macro-economic data and optionally AI market outlook (multi-source)."""
+    result = await run_sync(analyze_macro, skip_llm)
     return result
 
 
 @app.get("/api/bandarilogi/{symbol}")
-async def bandarilogi(symbol: str):
+async def bandarilogi(symbol: str, skip_llm: bool = Query(True, description="Skip LLM commentary, return raw indicators")):
     """Analyze foreign flow / bandarmology for a stock."""
-    result = await run_sync(analyze_bandarmology, symbol)
+    result = await run_sync(analyze_bandarmology, symbol, skip_llm)
     if "error" in result:
         raise HTTPException(500, result["error"])
     return result
 
 
 @app.get("/api/sentiment/{ticker}")
-async def sentiment(ticker: str):
-    """Analyze news sentiment for a ticker using AI."""
-    result = await run_sync(analyze_sentiment, ticker)
+async def sentiment(ticker: str, skip_llm: bool = Query(True, description="Skip LLM sentiment scoring, return raw headlines")):
+    """Get news headlines and optionally analyze sentiment using AI."""
+    result = await run_sync(analyze_sentiment, ticker, 5, skip_llm)
     if "error" in result:
         raise HTTPException(500, result["error"])
     return result
 
 
 @app.get("/api/ai-advisor/{symbol}")
-async def ai_advisor(symbol: str):
+async def ai_advisor(symbol: str, skip_llm: bool = Query(True, description="Skip LLM verdict, return raw data for agent reasoning")):
     """
     Unified AI Advisor — combines technical, sentiment, bandarilogi,
-    macro analysis, AND memory from past analyses into one verdict.
+    macro analysis, AND memory from past analyses.
+    skip_llm=True (default): returns raw data, calling agent does reasoning.
+    skip_llm=False: backend LLM generates verdict.
     """
-    log.info(f"AI Advisor request: {symbol}")
-    result = await run_sync(get_ai_advice, symbol)
+    log.info(f"AI Advisor request: {symbol} (skip_llm={skip_llm})")
+    result = await run_sync(get_ai_advice, symbol, skip_llm)
     if "error" in result:
         raise HTTPException(500, result["error"])
     return result

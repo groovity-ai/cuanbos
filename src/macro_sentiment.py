@@ -116,12 +116,21 @@ def get_macro_data():
 
 
 @cached("macro_analysis", ttl=TTL_ANALYSIS)
-def analyze_macro():
+def analyze_macro(skip_llm=True):
     """
-    Collect macro data and get AI market outlook.
-    Now includes multi-source indicators.
+    Collect macro data and optionally get AI market outlook.
+    skip_llm=True: return raw data (agent does reasoning).
     """
     data = get_macro_data()
+
+    if skip_llm:
+        result = {
+            "macro_data": data,
+            "analysis": None,
+            "llm_analyzed": False,
+        }
+        save_analysis_history("MACRO", "macro", result)
+        return result
 
     # Build context for LLM
     context_parts = []
@@ -187,6 +196,7 @@ def analyze_macro():
     result = {
         "macro_data": data,
         "analysis": ai_analysis,
+        "llm_analyzed": True,
     }
 
     # Save to history

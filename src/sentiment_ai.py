@@ -13,9 +13,10 @@ from logger import get_logger
 log = get_logger("sentiment_ai")
 
 
-def analyze_sentiment(ticker, limit=5):
+def analyze_sentiment(ticker, limit=5, skip_llm=True):
     """
-    Fetch news for a ticker and analyze sentiment using LLM.
+    Fetch news for a ticker and optionally analyze sentiment using LLM.
+    skip_llm=True: return raw headlines (agent does reasoning).
 
     Returns:
         dict with per-article sentiment and overall score.
@@ -33,7 +34,19 @@ def analyze_sentiment(ticker, limit=5):
             "sentiment_label": "Neutral",
             "articles": [],
             "summary": "Tidak ada berita ditemukan untuk ticker ini.",
+            "llm_analyzed": False,
         }
+
+    if skip_llm:
+        # Agent-centric: return raw headlines, let agent reason
+        result = {
+            "ticker": ticker,
+            "news_count": len(news_data["news"]),
+            "articles": news_data["news"],
+            "llm_analyzed": False,
+        }
+        save_analysis_history(ticker, "sentiment", result)
+        return result
 
     # 2. Build prompt with news headlines
     headlines = "\n".join(
@@ -86,6 +99,7 @@ Scoring guide:
             result = json.loads(cleaned)
             result["ticker"] = ticker
             result["news_count"] = len(news_data["news"])
+            result["llm_analyzed"] = True
             # Save to history
             save_analysis_history(ticker, "sentiment", result)
             return result
@@ -96,6 +110,7 @@ Scoring guide:
                 "sentiment_label": "Unknown",
                 "summary": response,
                 "raw_response": response,
+                "llm_analyzed": True,
             }
 
     except Exception as e:
