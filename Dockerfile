@@ -18,8 +18,10 @@ RUN pip install --upgrade pip && \
 # Copy source code
 COPY src ./src
 
-# Create non-root user
-RUN adduser --disabled-password --gecos '' cuanuser
+# Create log directory and non-root user
+RUN mkdir -p /app/logs && \
+    adduser --disabled-password --gecos '' cuanuser && \
+    chown -R cuanuser:cuanuser /app/logs
 USER cuanuser
 
 EXPOSE 8000

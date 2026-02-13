@@ -139,3 +139,4 @@ class TestRootUpdated:
         assert "/api/macro" in endpoints
         assert "/api/bandarilogi/{symbol}" in endpoints
         assert "/api/sentiment/{ticker}" in endpoints
+        assert "/api/ai-advisor/{symbol}" in endpoints

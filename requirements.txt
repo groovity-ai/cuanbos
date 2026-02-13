@@ -10,3 +10,5 @@ pytest
 httpx
 PyPDF2
 python-multipart
+redis
+loguru

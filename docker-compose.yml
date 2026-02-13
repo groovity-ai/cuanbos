@@ -6,6 +6,7 @@ services:
     container_name: cuanbot-engine
     volumes:
       - ./src:/app/src
+      - cuanbot_logs:/app/logs
     ports:
       - "8000:8000"
     environment:
@@ -13,10 +14,17 @@ services:
       - DB_USER=cuanbot
       - DB_PASSWORD=cuanbot_secret
       - DB_NAME=cuanbot
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
       - db
+      - redis
     working_dir: /app/src
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   db:
     image: postgres:16-alpine
@@ -26,11 +34,33 @@ services:
       - POSTGRES_PASSWORD=cuanbot_secret
       - POSTGRES_DB=cuanbot
     ports:
-      - "5436:5432" # Port 5436 to avoid conflict with MoziBoard (5435) and default (5432)
+      - "5436:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U cuanbot" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: cuanbot-redis
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
+  redis_data:
+  cuanbot_logs:
