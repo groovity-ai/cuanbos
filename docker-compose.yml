@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  cuanbot:
+    build: .
+    container_name: cuanbot-engine
+    volumes:
+      - ./src:/app/src
+    environment:
+      - DB_HOST=db
+      - DB_USER=cuanbot
+      - DB_PASSWORD=cuanbot_secret
+      - DB_NAME=cuanbot
+    depends_on:
+      - db
+    command: tail -f /dev/null
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: cuanbot-db
+    environment:
+      - POSTGRES_USER=cuanbot
+      - POSTGRES_PASSWORD=cuanbot_secret
+      - POSTGRES_DB=cuanbot
+    ports:
+      - "5436:5432" # Port 5436 to avoid conflict with MoziBoard (5435) and default (5432)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
