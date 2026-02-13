@@ -10,13 +10,13 @@ http://cuanbot-engine:8000
 ## Alur Kerja Analisa Saham (Recommended)
 
 ### Quick Analysis (1 endpoint)
-Gunakan AI Advisor untuk mendapatkan verdict komprehensif dalam sekali panggil:
+Gunakan AI Advisor untuk verdict komprehensif — **termasuk memori dari analisa sebelumnya**:
 ```
 GET /api/ai-advisor/{SYMBOL}
 ```
 Contoh: `GET /api/ai-advisor/BBCA.JK`
 
-Hasilnya sudah menggabungkan: Teknikal + Bandarilogi + Sentimen + Makro.
+Hasilnya sudah menggabungkan: Teknikal + Bandarilogi + Sentimen + Makro + AI Memory.
 
 ---
 
@@ -45,21 +45,46 @@ Output: akumulasi/distribusi, MFI, OBV trend.
 ```
 GET /api/macro
 ```
-Output: USD/IDR, IHSG, Gold, AI macro outlook.
+Output: USD/IDR, IHSG, Gold, BI Rate, VIX, bond yields, DXY, oil + AI macro outlook.
 
-**Step 5: Backtest Strategi (opsional)**
+**Step 5: Cek Multi-Source Data**
+```
+GET /api/data-sources/{SYMBOL}
+```
+Output: CNBC Indonesia news, macro indicators, BI rate, bond yields.
+
+**Step 6: Backtest Strategi (opsional)**
 ```
 GET /api/backtest/{SYMBOL}/{STRATEGY}
 ```
 Strategy: `rsi_oversold`, `ma_crossover`, `macd_reversal`
 Output: win rate, Sharpe ratio, max drawdown, equity curve.
 
-**Step 6: Screener (cari saham terbaik)**
+**Step 7: Screener (cari saham terbaik)**
 ```
 GET /api/screener?filter=high_score&min_score=70
 ```
 Filter: `all`, `oversold`, `bullish`, `cheap`, `high_score`
 Output: composite score 0-100, sektor, PE, RSI.
+
+**Step 8: Cek Riwayat Analisa**
+```
+GET /api/history/{SYMBOL}/full?type=ai_advisor&limit=5
+GET /api/history/{SYMBOL}/trend?days=30
+```
+Output: riwayat analisa sebelumnya, trend RSI/harga dari waktu ke waktu.
+
+---
+
+## Feedback Loop
+Setelah user menerima analisa, kirim feedback untuk meningkatkan akurasi:
+```
+POST /api/feedback
+Body: {"analysis_id": 42, "symbol": "BBCA.JK", "rating": 1}
+```
+Rating: `1` = 👍, `-1` = 👎
+
+Cek akurasi: `GET /api/feedback/stats?symbol=BBCA.JK`
 
 ---
 
@@ -87,12 +112,17 @@ Penjelasan santai kenapa — gabungkan teknikal + sentimen + bandar.
 
 | Endpoint | Method | Fungsi |
 |----------|--------|--------|
-| `/api/ai-advisor/{symbol}` | GET | Analisa lengkap 1 endpoint |
+| `/api/ai-advisor/{symbol}` | GET | Analisa lengkap + AI memory |
 | `/api/analyze/{type}/{symbol}` | GET | Teknikal analisis |
-| `/api/news/{ticker}` | GET | Berita terbaru |
+| `/api/news/{ticker}` | GET | Berita (Google + CNBC Indo) |
 | `/api/sentiment/{ticker}` | GET | Sentimen AI berita |
 | `/api/bandarilogi/{symbol}` | GET | Foreign flow |
-| `/api/macro` | GET | Makro ekonomi |
+| `/api/macro` | GET | Makro ekonomi (multi-source) |
+| `/api/data-sources/{symbol}` | GET | Data dari berbagai sumber |
+| `/api/history/{symbol}/full` | GET | Riwayat analisa JSONB |
+| `/api/history/{symbol}/trend` | GET | Trend RSI/harga time-series |
+| `/api/feedback` | POST | Submit 👍/👎 feedback |
+| `/api/feedback/stats` | GET | Statistik akurasi |
 | `/api/backtest/{symbol}/{strategy}` | GET | Backtest strategi |
 | `/api/screener?filter=X&min_score=N` | GET | Screener saham |
 | `/api/chart-vision` | POST | Analisa chart (upload image) |
@@ -106,6 +136,8 @@ Penjelasan santai kenapa — gabungkan teknikal + sentimen + bandar.
 ## Tips Penting
 1. **Selalu gunakan `.JK` suffix** untuk saham Indo: `BBCA.JK`, `BBRI.JK`
 2. **Crypto format**: `BTC/USDT`, `ETH/USDT`
-3. **Data di-cache** — market data 5 menit, berita 30 menit
+3. **Data di-cache** — market data 5 menit, berita 30 menit, macro 15 menit
 4. **Kalau satu endpoint gagal**, lanjut ke yang lain — jangan stop analisa
 5. **Gorengan warning** — kalau detect, keras-keras peringatkan user!
+6. **Selalu kirim feedback** setelah user respond — bikin AI makin akurat
+7. **Cek riwayat dulu** sebelum analisa — AI akan include context otomatis

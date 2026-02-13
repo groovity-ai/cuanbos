@@ -1,11 +1,16 @@
 """
 Sentiment AI — Auto-analyze news sentiment for a stock/crypto ticker.
 Uses existing news.py + LLM for sentiment scoring.
+Saves results to analysis_history for AI memory.
 """
 
 import json
 from news import fetch_news
 from ai_client import chat_completion
+from database import save_analysis_history
+from logger import get_logger
+
+log = get_logger("sentiment_ai")
 
 
 def analyze_sentiment(ticker, limit=5):
@@ -81,6 +86,8 @@ Scoring guide:
             result = json.loads(cleaned)
             result["ticker"] = ticker
             result["news_count"] = len(news_data["news"])
+            # Save to history
+            save_analysis_history(ticker, "sentiment", result)
             return result
         except json.JSONDecodeError:
             return {

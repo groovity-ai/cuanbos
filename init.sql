@@ -30,6 +30,27 @@ CREATE TABLE IF NOT EXISTS portfolio (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Full analysis history (JSONB snapshots for time-series tracking)
+CREATE TABLE IF NOT EXISTS analysis_history (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    analysis_type VARCHAR(30) NOT NULL,  -- 'technical', 'ai_advisor', 'sentiment', 'bandarilogi', 'macro'
+    analysis_data JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_ah_symbol ON analysis_history(symbol, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ah_type ON analysis_history(analysis_type, created_at DESC);
+
+-- User feedback on AI analyses (thumbs up/down)
+CREATE TABLE IF NOT EXISTS ai_feedback (
+    id SERIAL PRIMARY KEY,
+    analysis_id INT REFERENCES analysis_history(id) ON DELETE CASCADE,
+    symbol VARCHAR(20),
+    rating SMALLINT NOT NULL CHECK (rating IN (-1, 1)),  -- -1 = 👎, 1 = 👍
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Seed some initial data
 INSERT INTO watchlist (symbol, asset_type, notes) VALUES 
 ('BBCA.JK', 'stock', 'Blue chip banking'),

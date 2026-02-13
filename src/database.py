@@ -209,3 +209,163 @@ def delete_portfolio_position(position_id):
             log.error(f"Error deleting position {position_id}: {e}")
             conn.rollback()
             return False
+
+
+# ============================================================
+# Analysis History (JSONB snapshots for time-series tracking)
+# ============================================================
+
+def save_analysis_history(symbol, analysis_type, data):
+    """
+    Save a full analysis snapshot to the history table (JSONB).
+    Returns the inserted row id, or None on failure.
+    """
+    with get_connection() as conn:
+        if not conn:
+            return None
+        try:
+            import json
+            cur = conn.cursor()
+            cur.execute(
+                """INSERT INTO analysis_history (symbol, analysis_type, analysis_data)
+                   VALUES (%s, %s, %s::jsonb) RETURNING id""",
+                (symbol, analysis_type, json.dumps(data, default=str))
+            )
+            row_id = cur.fetchone()[0]
+            conn.commit()
+            cur.close()
+            log.info(f"History saved: {symbol}/{analysis_type} → id={row_id}")
+            return row_id
+        except Exception as e:
+            log.error(f"Error saving history for {symbol}/{analysis_type}: {e}")
+            conn.rollback()
+            return None
+
+
+def get_analysis_history(symbol, analysis_type=None, limit=10, offset=0):
+    """
+    Fetch recent analysis history for a symbol.
+    Optionally filter by analysis_type.
+    """
+    with get_connection() as conn:
+        if not conn:
+            return []
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            if analysis_type:
+                cur.execute(
+                    """SELECT id, symbol, analysis_type, analysis_data, created_at
+                       FROM analysis_history
+                       WHERE symbol = %s AND analysis_type = %s
+                       ORDER BY created_at DESC LIMIT %s OFFSET %s""",
+                    (symbol, analysis_type, limit, offset)
+                )
+            else:
+                cur.execute(
+                    """SELECT id, symbol, analysis_type, analysis_data, created_at
+                       FROM analysis_history
+                       WHERE symbol = %s
+                       ORDER BY created_at DESC LIMIT %s OFFSET %s""",
+                    (symbol, limit, offset)
+                )
+            results = cur.fetchall()
+            cur.close()
+            return [dict(r) for r in results]
+        except Exception as e:
+            log.error(f"Error fetching history for {symbol}: {e}")
+            return []
+
+
+def get_analysis_trend(symbol, days=30):
+    """
+    Get time-series data for a symbol over N days.
+    Returns list of {date, price, rsi, verdict} from daily_analysis.
+    """
+    with get_connection() as conn:
+        if not conn:
+            return []
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """SELECT analysis_date, price, rsi, trend_status, verdict
+                   FROM daily_analysis
+                   WHERE symbol = %s
+                     AND analysis_date >= CURRENT_DATE - INTERVAL '%s days'
+                   ORDER BY analysis_date ASC""",
+                (symbol, days)
+            )
+            results = cur.fetchall()
+            cur.close()
+            return [dict(r) for r in results]
+        except Exception as e:
+            log.error(f"Error fetching trend for {symbol}: {e}")
+            return []
+
+
+def save_feedback(analysis_id, symbol, rating, comment=None):
+    """
+    Save user feedback (👍 = 1, 👎 = -1) on an analysis.
+    """
+    with get_connection() as conn:
+        if not conn:
+            return None
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """INSERT INTO ai_feedback (analysis_id, symbol, rating, comment)
+                   VALUES (%s, %s, %s, %s) RETURNING *""",
+                (analysis_id, symbol, rating, comment)
+            )
+            result = cur.fetchone()
+            conn.commit()
+            cur.close()
+            log.info(f"Feedback saved: {symbol} analysis #{analysis_id} → {'👍' if rating == 1 else '👎'}")
+            return dict(result)
+        except Exception as e:
+            log.error(f"Error saving feedback: {e}")
+            conn.rollback()
+            return None
+
+
+def get_feedback_stats(symbol=None):
+    """
+    Get accuracy stats from user feedback.
+    If symbol given, return stats per symbol. Otherwise, global stats.
+    """
+    with get_connection() as conn:
+        if not conn:
+            return {}
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            if symbol:
+                cur.execute(
+                    """SELECT
+                         COUNT(*) as total,
+                         SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as positive,
+                         SUM(CASE WHEN rating = -1 THEN 1 ELSE 0 END) as negative,
+                         ROUND(AVG(rating)::numeric, 2) as avg_rating
+                       FROM ai_feedback WHERE symbol = %s""",
+                    (symbol,)
+                )
+            else:
+                cur.execute(
+                    """SELECT
+                         COUNT(*) as total,
+                         SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as positive,
+                         SUM(CASE WHEN rating = -1 THEN 1 ELSE 0 END) as negative,
+                         ROUND(AVG(rating)::numeric, 2) as avg_rating
+                       FROM ai_feedback"""
+                )
+            result = cur.fetchone()
+            cur.close()
+            if result:
+                stats = dict(result)
+                total = stats.get("total", 0)
+                positive = stats.get("positive", 0)
+                stats["accuracy_pct"] = round(positive / total * 100, 1) if total > 0 else None
+                return stats
+            return {"total": 0, "positive": 0, "negative": 0, "accuracy_pct": None}
+        except Exception as e:
+            log.error(f"Error fetching feedback stats: {e}")
+            return {}
+

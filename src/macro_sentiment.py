@@ -1,6 +1,6 @@
 """
-Macro-Economic Sentiment
-Scrape BI Rate, Fed Rate, USD/IDR, and get AI market outlook.
+Macro-Economic Sentiment with Multi-Source Data.
+Combines yfinance macro + data_sources for richer analysis.
 """
 
 import json
@@ -9,6 +9,12 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 import yfinance as yf
 from ai_client import chat_completion
+from data_sources import fetch_indonesia_macro, fetch_bi_rate
+from database import save_analysis_history
+from cache import cached, TTL_ANALYSIS
+from logger import get_logger
+
+log = get_logger("macro_sentiment")
 
 
 def get_usd_idr():
@@ -84,19 +90,36 @@ def get_macro_news():
 
 
 def get_macro_data():
-    """Collect all macro-economic data points."""
-    return {
+    """Collect all macro-economic data points — now with multi-source data."""
+    base = {
         "usd_idr": get_usd_idr(),
         "ihsg": get_ihsg(),
         "gold_usd": get_gold_price(),
         "news": get_macro_news(),
     }
 
+    # Enrich with multi-source data
+    try:
+        extra = fetch_indonesia_macro()
+        base["indicators"] = extra.get("indicators", {})
+    except Exception as e:
+        log.warning(f"Multi-source macro fetch failed: {e}")
 
+    try:
+        bi = fetch_bi_rate()
+        base["bi_rate"] = bi.get("bi7drr")
+        base["bi_rate_headlines"] = bi.get("headlines", [])
+    except Exception as e:
+        log.warning(f"BI rate fetch failed: {e}")
+
+    return base
+
+
+@cached("macro_analysis", ttl=TTL_ANALYSIS)
 def analyze_macro():
     """
     Collect macro data and get AI market outlook.
-    Returns dict with macro data + AI analysis.
+    Now includes multi-source indicators.
     """
     data = get_macro_data()
 
@@ -108,6 +131,19 @@ def analyze_macro():
         context_parts.append(f"IHSG: {data['ihsg']['value']} ({data['ihsg']['change_pct']:+.2f}%)")
     if data["gold_usd"]:
         context_parts.append(f"Gold (XAU/USD): ${data['gold_usd']}")
+
+    # Multi-source indicators
+    indicators = data.get("indicators", {})
+    for key, ind in indicators.items():
+        val = ind.get("value", "N/A")
+        unit = ind.get("unit", "")
+        desc = ind.get("description", key)
+        context_parts.append(f"{desc}: {val}{unit}")
+
+    # BI Rate
+    if data.get("bi_rate"):
+        context_parts.append(f"BI7DRR (BI Rate): {data['bi_rate']}%")
+
     if data["news"]:
         news_text = "\n".join([f"- [{n['topic']}] {n['title']}" for n in data["news"]])
         context_parts.append(f"Recent News:\n{news_text}")
@@ -148,10 +184,15 @@ def analyze_macro():
     except Exception as e:
         ai_analysis = {"error": str(e)}
 
-    return {
+    result = {
         "macro_data": data,
         "analysis": ai_analysis,
     }
+
+    # Save to history
+    save_analysis_history("MACRO", "macro", result)
+
+    return result
 
 
 if __name__ == "__main__":

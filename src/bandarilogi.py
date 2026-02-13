@@ -1,12 +1,17 @@
 """
 Bandarilogi / Foreign Flow Tracker
 Track big money movement and accumulation/distribution patterns.
+Saves results to analysis_history for AI memory.
 """
 
 import json
 import yfinance as yf
 import pandas as pd
 from ai_client import chat_completion
+from database import save_analysis_history
+from logger import get_logger
+
+log = get_logger("bandarilogi")
 
 
 def get_foreign_flow_data(symbol):
@@ -162,6 +167,8 @@ Respond in VALID JSON:
         ai_analysis = {"error": str(e)}
 
     data["ai_analysis"] = ai_analysis
+    # Save to history
+    save_analysis_history(symbol, "bandarilogi", data)
     return data
 
 

@@ -140,3 +140,7 @@ class TestRootUpdated:
         assert "/api/bandarilogi/{symbol}" in endpoints
         assert "/api/sentiment/{ticker}" in endpoints
         assert "/api/ai-advisor/{symbol}" in endpoints
+        # v3 data intelligence endpoints
+        assert "/api/history/{symbol}/full" in endpoints
+        assert "/api/feedback" in endpoints
+        assert "/api/data-sources/{symbol}" in endpoints

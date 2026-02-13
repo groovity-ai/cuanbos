@@ -18,7 +18,7 @@ log = get_logger("news")
 @cached("news", ttl=TTL_NEWS)
 def fetch_news(ticker, limit=5):
     """
-    Fetch news from Google News RSS for a given ticker.
+    Fetch news from Google News RSS + CNBC Indonesia.
     Results are cached for 30 minutes.
     """
     try:
@@ -50,13 +50,29 @@ def fetch_news(ticker, limit=5):
             news_items.append({
                 "title": title,
                 "link": link,
-                "date": pub_date
+                "date": pub_date,
+                "source": "Google News"
             })
+
+        # Enrich with CNBC Indonesia
+        try:
+            from data_sources import fetch_cnbc_news
+            cnbc = fetch_cnbc_news(ticker, limit=3)
+            for item in cnbc.get("news", []):
+                news_items.append({
+                    "title": item.get("title", ""),
+                    "link": item.get("link", ""),
+                    "date": item.get("date", ""),
+                    "source": item.get("source", "CNBC Indonesia"),
+                })
+        except Exception as e:
+            log.warning(f"CNBC news fetch failed, continuing with Google only: {e}")
 
         return {
             "ticker": ticker,
             "query": query,
             "count": len(news_items),
+            "sources": ["Google News", "CNBC Indonesia"],
             "news": news_items
         }
 

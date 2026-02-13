@@ -1,7 +1,7 @@
 """
 AI Advisor — CuanBot's unified intelligence endpoint.
-Combines Technical, Sentiment, Bandarilogi, and Macro analysis
-into a single AI-powered verdict.
+Combines Technical, Sentiment, Bandarilogi, Macro analysis + AI Memory
+into a single AI-powered verdict. Saves results to analysis history.
 """
 
 import json
@@ -11,6 +11,8 @@ from bandarilogi import analyze_bandarmology
 from sentiment_ai import analyze_sentiment
 from macro_sentiment import analyze_macro
 from ai_client import chat_completion
+from ai_memory import format_memory_prompt
+from database import save_analysis_history
 from cache import cached, TTL_ANALYSIS
 from logger import get_logger
 
@@ -32,9 +34,10 @@ Berikut data lengkap untuk saham {symbol}:
 ## 4. Kondisi Makro Ekonomi
 {macro_json}
 
+{memory_section}
 ---
 
-Berdasarkan SEMUA data di atas, berikan analisa komprehensif dalam format JSON:
+Berdasarkan SEMUA data di atas (termasuk riwayat analisa sebelumnya jika ada), berikan analisa komprehensif dalam format JSON:
 {{
   "verdict": "STRONG BUY / BUY / HOLD / SELL / STRONG SELL / AVOID",
   "confidence": 0-100,
@@ -43,7 +46,8 @@ Berdasarkan SEMUA data di atas, berikan analisa komprehensif dalam format JSON:
   "risk_level": "Low / Medium / High / Very High",
   "target_entry": harga_entry_ideal_atau_null,
   "target_exit": harga_exit_ideal_atau_null,
-  "timeframe": "Short-term / Medium-term / Long-term"
+  "timeframe": "Short-term / Medium-term / Long-term",
+  "consistency_note": "Catatan jika verdict berubah dari analisa sebelumnya, jelaskan kenapa"
 }}
 
 PENTING: Jawab HANYA dengan JSON, tanpa markdown atau teks tambahan."""
@@ -53,6 +57,7 @@ PENTING: Jawab HANYA dengan JSON, tanpa markdown atau teks tambahan."""
 def get_ai_advice(symbol):
     """
     Run all analyses and combine into a single AI-powered verdict.
+    Injects memory context from past analyses.
     """
     log.info(f"AI Advisor: generating advice for {symbol}")
 
@@ -64,6 +69,9 @@ def get_ai_advice(symbol):
     technical = analyze_market_data(market_data)
     if "error" in technical:
         return {"error": f"Technical analysis failed: {technical['error']}"}
+
+    # Save technical analysis to history
+    save_analysis_history(symbol, "technical", technical)
 
     # 2. Bandarilogi
     try:
@@ -83,6 +91,10 @@ def get_ai_advice(symbol):
     except Exception as e:
         macro = {"error": str(e)}
 
+    # 5. AI Memory — inject past context
+    memory_text = format_memory_prompt(symbol)
+    memory_section = f"\n{memory_text}\n" if memory_text else ""
+
     # Build prompt
     prompt = ADVISOR_PROMPT.format(
         symbol=symbol,
@@ -90,15 +102,21 @@ def get_ai_advice(symbol):
         bandar_json=json.dumps(bandar, indent=2, default=str),
         sentiment_json=json.dumps(sentiment, indent=2, default=str),
         macro_json=json.dumps(macro, indent=2, default=str),
+        memory_section=memory_section,
     )
 
     # Call LLM
     try:
         raw_response = chat_completion(prompt)
         # Try to parse JSON from response
-        ai_result = json.loads(raw_response)
+        cleaned = raw_response.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[1]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+        ai_result = json.loads(cleaned)
     except json.JSONDecodeError:
-        # If LLM didn't return clean JSON, wrap it
         ai_result = {
             "verdict": "HOLD",
             "confidence": 50,
@@ -115,9 +133,10 @@ def get_ai_advice(symbol):
             "risk_level": "Unknown",
         }
 
-    return {
+    result = {
         "symbol": symbol,
         "ai_verdict": ai_result,
+        "has_memory": memory_text is not None,
         "data_sources": {
             "technical": technical,
             "bandarilogi": bandar if "error" not in bandar else None,
@@ -125,3 +144,10 @@ def get_ai_advice(symbol):
             "macro": macro if "error" not in macro else None,
         },
     }
+
+    # Save AI advisor result to history
+    history_id = save_analysis_history(symbol, "ai_advisor", result)
+    if history_id:
+        result["analysis_id"] = history_id
+
+    return result
