@@ -58,7 +58,7 @@ app.add_middleware(
 )
 
 # Global request timeout (seconds) for blocking I/O
-REQUEST_TIMEOUT = 30
+REQUEST_TIMEOUT = 60
 
 
 async def run_sync(func, *args, **kwargs):

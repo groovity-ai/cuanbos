@@ -5,7 +5,7 @@ Uses psycopg2 SimpleConnectionPool for efficient connection reuse.
 
 import os
 import psycopg2
-from psycopg2.pool import SimpleConnectionPool
+from psycopg2.pool import ThreadedConnectionPool
 from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
 from datetime import datetime
@@ -28,7 +28,7 @@ def _get_pool():
     global _pool
     if _pool is None or _pool.closed:
         try:
-            _pool = SimpleConnectionPool(
+            _pool = ThreadedConnectionPool(
                 minconn=2,
                 maxconn=10,
                 host=DB_HOST,

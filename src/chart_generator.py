@@ -11,6 +11,9 @@ import mplfinance as mpf
 from market_data import get_crypto_data as fetch_crypto_data, get_stock_data as fetch_stock_data
 from tech_analysis import analyze_market_data
 import pandas_ta as ta
+from logger import get_logger
+
+log = get_logger("chart_generator")
 
 def generate_chart(ticker, market_type="crypto", days=60):
     """
@@ -40,7 +43,10 @@ def generate_chart(ticker, market_type="crypto", days=60):
 
         # Ensure index is datetime for mplfinance
         if not isinstance(df.index, pd.DatetimeIndex):
-            if 'date' in df.columns:
+            if 'Date' in df.columns:
+                df['Date'] = pd.to_datetime(df['Date'])
+                df.set_index('Date', inplace=True)
+            elif 'date' in df.columns:
                 df['date'] = pd.to_datetime(df['date'])
                 df.set_index('date', inplace=True)
             elif 'timestamp' in df.columns:
@@ -109,5 +115,5 @@ def generate_chart(ticker, market_type="crypto", days=60):
         
     except Exception as e:
         import traceback
-        traceback.print_exc()
+        log.error(f"Failed to generate chart for {ticker}: {e}\n{traceback.format_exc()}")
         raise Exception(f"Failed to generate chart for {ticker}: {str(e)}")

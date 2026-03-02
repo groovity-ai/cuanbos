@@ -4,7 +4,7 @@ Analyze candlestick chart screenshots using Gemini Vision via OpenClaw.
 """
 
 import json
-from ai_client import vision_completion
+from ai_client import vision_completion, clean_json_response
 
 CHART_VISION_PROMPT = """You are CuanBot, an expert technical analyst AI.
 Analyze this candlestick/price chart image carefully.
@@ -44,12 +44,7 @@ def analyze_chart(image_bytes):
 
         # Try to parse as JSON
         # Sometimes LLM wraps in ```json ... ```
-        cleaned = response.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[1]  # Remove first line
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-            cleaned = cleaned.strip()
+        cleaned = clean_json_response(response)
 
         try:
             result = json.loads(cleaned)

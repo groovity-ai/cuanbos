@@ -5,7 +5,9 @@ Fetches on-chain large transactions (Whale Alerts) using free APIs or heuristics
 
 import httpx
 import json
-from logger import logger
+from logger import get_logger
+
+log = get_logger("whale_tracker")
 
 # Whale Alert free tier API or an alternative public on-chain explorer
 # Since real Whale Alert requires an API key, we will use an alternative or mock
@@ -49,7 +51,7 @@ def get_bitcoin_whales():
             "message": f"Found {len(whale_txs)} unconfirmed whale transactions (>500 BTC) right now."
         }
     except Exception as e:
-        logger.error(f"Error fetching whale data: {e}")
+        log.error(f"Error fetching whale data: {e}")
         return {"status": "error", "message": str(e)}
 
 def analyze_whale_sentiment():

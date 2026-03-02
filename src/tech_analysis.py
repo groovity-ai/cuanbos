@@ -89,11 +89,12 @@ def analyze_market_data(data):
             # Try specific columns first, else fallback by index
             # Upper is usually 2nd index (0=Lower, 1=Mid, 2=Upper) in some versions, or named explicitly
             # Let's try to find column ending with BBU_...
-            bbu_col = [c for c in bb.columns if c.startswith('BBU')][0]
-            bbl_col = [c for c in bb.columns if c.startswith('BBL')][0]
+            bbu_cols = [c for c in bb.columns if c.startswith('BBU')]
+            bbl_cols = [c for c in bb.columns if c.startswith('BBL')]
             
-            bb_upper = bb[bbu_col].iloc[-1]
-            bb_lower = bb[bbl_col].iloc[-1]
+            # Use fallback 0 if column not found
+            bb_upper = bb[bbu_cols[0]].iloc[-1] if bbu_cols else 0
+            bb_lower = bb[bbl_cols[0]].iloc[-1] if bbl_cols else 0
         else:
             bb_upper = 0
             bb_lower = 0

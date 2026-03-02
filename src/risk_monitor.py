@@ -31,7 +31,7 @@ def monitor_risk():
         try:
             ticker = yf.Ticker(symbol)
             try:
-                current_price = ticker.fast_info['last_price']
+                current_price = ticker.fast_info.last_price
             except Exception:
                 hist = ticker.history(period="1d")
                 if hist.empty:

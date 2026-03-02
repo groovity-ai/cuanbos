@@ -6,7 +6,7 @@ Saves results to analysis_history for AI memory.
 
 import json
 from news import fetch_news
-from ai_client import chat_completion
+from ai_client import chat_completion, clean_json_response
 from database import save_analysis_history
 from logger import get_logger
 
@@ -88,12 +88,7 @@ Scoring guide:
     try:
         response = chat_completion(messages)
 
-        cleaned = response.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[1]
-            if cleaned.endswith("```"):
-                cleaned = cleaned[:-3]
-            cleaned = cleaned.strip()
+        cleaned = clean_json_response(response)
 
         try:
             result = json.loads(cleaned)

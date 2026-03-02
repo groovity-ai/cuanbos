@@ -5,7 +5,7 @@ import traceback
 router = APIRouter()
 
 @router.get("/whales")
-async def get_whales():
+def get_whales():
     try:
         return analyze_whale_sentiment()
     except Exception as e:

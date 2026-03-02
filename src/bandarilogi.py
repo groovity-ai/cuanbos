@@ -7,7 +7,7 @@ Saves results to analysis_history for AI memory.
 import json
 import yfinance as yf
 import pandas as pd
-from ai_client import chat_completion
+from ai_client import chat_completion, clean_json_response
 from database import save_analysis_history
 from logger import get_logger
 
@@ -158,12 +158,7 @@ Respond in VALID JSON:
 
         try:
             response = chat_completion(messages)
-            cleaned = response.strip()
-            if cleaned.startswith("```"):
-                cleaned = cleaned.split("\n", 1)[1]
-                if cleaned.endswith("```"):
-                    cleaned = cleaned[:-3]
-                cleaned = cleaned.strip()
+            cleaned = clean_json_response(response)
 
             try:
                 ai_analysis = json.loads(cleaned)

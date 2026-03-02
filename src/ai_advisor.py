@@ -10,7 +10,7 @@ from tech_analysis import analyze_market_data
 from bandarilogi import analyze_bandarmology
 from sentiment_ai import analyze_sentiment
 from macro_sentiment import analyze_macro
-from ai_client import chat_completion
+from ai_client import chat_completion, clean_json_response
 from ai_memory import format_memory_prompt
 from database import save_analysis_history
 from cache import cached, TTL_ANALYSIS
@@ -114,12 +114,7 @@ def get_ai_advice(symbol, skip_llm=True):
         try:
             raw_response = chat_completion(prompt)
             # Try to parse JSON from response
-            cleaned = raw_response.strip()
-            if cleaned.startswith("```"):
-                cleaned = cleaned.split("\n", 1)[1]
-                if cleaned.endswith("```"):
-                    cleaned = cleaned[:-3]
-                cleaned = cleaned.strip()
+            cleaned = clean_json_response(raw_response)
             ai_result = json.loads(cleaned)
         except json.JSONDecodeError:
             ai_result = {

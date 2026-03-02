@@ -8,6 +8,7 @@ import json
 import base64
 import urllib.request
 import urllib.error
+import re
 
 # OpenClaw config (already connected to Gemini)
 OPENCLAW_URL = os.getenv("OPENCLAW_URL", "http://host.docker.internal:18792/v1")
@@ -81,3 +82,13 @@ def vision_completion(image_bytes, prompt, model=None):
     ]
 
     return chat_completion(messages, model=model, temperature=0.2)
+
+
+def clean_json_response(raw_string: str) -> str:
+    """Helper to strip markdown tokens from LLM JSON response string"""
+    cleaned = raw_string.strip()
+    # Remove leading ``` or ```json with optional whitespace/newlines
+    cleaned = re.sub(r'^```[a-zA-Z]*\s*', '', cleaned)
+    # Remove trailing ``` with optional whitespace
+    cleaned = re.sub(r'\s*```$', '', cleaned)
+    return cleaned.strip()
