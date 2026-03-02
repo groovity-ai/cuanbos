@@ -1,5 +1,6 @@
 yfinance
 pandas
+mplfinance
 # pandas-ta will be installed manually from local tarball
 ccxt
 fastapi

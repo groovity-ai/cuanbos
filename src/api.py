@@ -31,6 +31,8 @@ from macro_sentiment import analyze_macro
 from bandarilogi import analyze_bandarmology
 from sentiment_ai import analyze_sentiment
 from ai_advisor import get_ai_advice
+from api_chart import router as chart_router
+from api_whale import router as whale_router
 from data_sources import aggregate_all_sources
 from logger import get_logger
 
@@ -41,6 +43,10 @@ app = FastAPI(
     description="AI-Powered Financial Analyst Agent API 💹",
     version="3.0.0"
 )
+
+# Include Routers
+app.include_router(chart_router, prefix="/api")
+app.include_router(whale_router, prefix="/api")
 
 # CORS
 app.add_middleware(
