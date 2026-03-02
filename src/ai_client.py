@@ -11,16 +11,23 @@ import urllib.error
 
 # OpenClaw config (already connected to Gemini)
 OPENCLAW_URL = os.getenv("OPENCLAW_URL", "http://host.docker.internal:18792/v1")
-OPENCLAW_MODEL = os.getenv("OPENCLAW_MODEL", "gemini-2.0-flash")
+OPENCLAW_API_KEY = os.getenv("OPENCLAW_API_KEY", "")
+OPENCLAW_MODEL = os.getenv("AI_MODEL", "google-antigravity/gemini-3-pro-high")
 
 
-def chat_completion(messages, model=None, temperature=0.3):
+def chat_completion(messages_or_prompt, model=None, temperature=0.3):
     """
     Send a chat completion request to OpenClaw (OpenAI-compatible API).
     Returns the assistant's message content as string.
     """
     url = f"{OPENCLAW_URL}/chat/completions"
     model = model or OPENCLAW_MODEL
+
+    # Auto-convert string prompt to messages format
+    if isinstance(messages_or_prompt, str):
+        messages = [{"role": "user", "content": messages_or_prompt}]
+    else:
+        messages = messages_or_prompt
 
     payload = {
         "model": model,
@@ -29,10 +36,15 @@ def chat_completion(messages, model=None, temperature=0.3):
     }
 
     data = json.dumps(payload).encode("utf-8")
+    
+    headers = {"Content-Type": "application/json"}
+    if OPENCLAW_API_KEY:
+        headers["Authorization"] = f"Bearer {OPENCLAW_API_KEY}"
+
     req = urllib.request.Request(
         url,
         data=data,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method="POST",
     )
 

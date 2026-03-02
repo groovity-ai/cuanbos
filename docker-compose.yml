@@ -15,6 +15,11 @@ services:
       - DB_PASSWORD=cuanbot_secret
       - DB_NAME=cuanbot
       - REDIS_URL=redis://redis:6379/0
+      - OPENCLAW_URL=http://host.docker.internal:18789/v1
+      - OPENCLAW_API_KEY=a5a3e43e5ef31b7a2fa8e073fbcf562ba35fd25d73599614
+      - AI_MODEL=google-antigravity/gemini-3-pro-high
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - db
       - redis
