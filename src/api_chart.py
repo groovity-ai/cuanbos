@@ -4,7 +4,7 @@ import traceback
 
 router = APIRouter()
 
-@router.get("/chart/{market_type}/{ticker}")
+@router.get("/chart/{market_type}/{ticker:path}")
 def get_chart(market_type: str, ticker: str, days: int = 60):
     try:
         image_bytes = generate_chart(ticker.upper(), market_type, days)

@@ -107,7 +107,7 @@ def generate_chart(ticker, market_type="crypto", days=60):
                  ylabel_lower='Volume',
                  figratio=(12, 8),
                  figscale=1.2,
-                 panel_ratios=(4, 1, 1.5, 1.5), # Main, Volume, MACD, RSI
+                 panel_ratios=(4, 1.5, 1.5), # Main, Volume, MACD, RSI
                  savefig=dict(fname=buf, format='png', bbox_inches='tight', pad_inches=0.1))
         
         buf.seek(0)
